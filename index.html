@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>確認くん｜ヤフショ表示チェッカー</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --line: #e2e5ea;
+    --ink: #1c2230;
+    --sub: #6b7280;
+    --accent: #e60012;      /* ヤフショ寄りの赤 */
+    --accent-soft: #fde8e9;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { text-align: center; margin-bottom: 24px; }
+  .title {
+    font-size: 30px; font-weight: 800; letter-spacing: .02em; margin: 0;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .title .badge {
+    font-size: 12px; font-weight: 700; color: #fff; background: var(--accent);
+    padding: 4px 10px; border-radius: 999px; letter-spacing: .04em;
+  }
+  .lead { color: var(--sub); font-size: 14px; margin: 10px 0 0; }
+
+  .drop {
+    margin-top: 24px;
+    background: var(--card);
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 44px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, transform .05s;
+  }
+  .drop:hover { border-color: #c7ccd4; }
+  .drop.drag {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .drop .icon { font-size: 40px; line-height: 1; }
+  .drop .big { font-size: 16px; font-weight: 700; margin-top: 10px; }
+  .drop .small { font-size: 13px; color: var(--sub); margin-top: 4px; }
+  .drop input { display: none; }
+
+  .result { margin-top: 28px; display: none; }
+  .result.show { display: block; }
+
+  .stage {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .stage-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .stage-head h2 { font-size: 16px; margin: 0; font-weight: 800; }
+  .stage-head .note { font-size: 12px; color: var(--sub); }
+
+  .preview {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 24px rgba(0,0,0,.12);
+  }
+  .preview img { max-width: 100%; max-height: 100%; display: block; }
+
+  .meta {
+    margin-top: 18px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    font-size: 13px;
+  }
+  .meta .box {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .meta .label { color: var(--sub); font-size: 11px; }
+  .meta .val { font-weight: 700; font-size: 15px; margin-top: 2px; }
+
+  .verdict {
+    margin-top: 16px; border-radius: 10px; padding: 12px 16px;
+    font-size: 14px; font-weight: 700; text-align: center;
+  }
+  .verdict.warn { background: var(--accent-soft); color: var(--accent); }
+  .verdict.ok { background: #e7f6ec; color: #1a7f37; }
+
+  .again {
+    margin-top: 20px; text-align: center;
+  }
+  .again button {
+    font: inherit; font-weight: 700; font-size: 14px;
+    background: var(--ink); color: #fff; border: 0;
+    padding: 10px 22px; border-radius: 999px; cursor: pointer;
+  }
+  .again button:hover { opacity: .9; }
+
+  footer { text-align: center; color: var(--sub); font-size: 12px; margin-top: 28px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1 class="title">確認くん <span class="badge">ヤフショ表示チェッカー</span></h1>
+      <p class="lead">楽天用の縦長画像が、ヤフショだとどう見えるか（左右の黒帯）を確認できます。</p>
+    </header>
+
+    <label class="drop" id="drop">
+      <div class="icon">🖼️</div>
+      <div class="big">ここに画像をドラッグ＆ドロップ</div>
+      <div class="small">またはクリックしてファイルを選択（PC内には保存されません）</div>
+      <input type="file" id="file" accept="image/*">
+    </label>
+
+    <section class="result" id="result">
+      <div class="stage">
+        <div class="stage-head">
+          <h2>ヤフショでの見え方</h2>
+          <span class="note">1:1 の枠に収めて表示（余白＝黒）</span>
+        </div>
+        <div class="preview">
+          <img id="preview-img" alt="ヤフショ表示プレビュー">
+        </div>
+
+        <div class="meta">
+          <div class="box">
+            <div class="label">元画像サイズ</div>
+            <div class="val" id="m-size">-</div>
+          </div>
+          <div class="box">
+            <div class="label">縦横比</div>
+            <div class="val" id="m-ratio">-</div>
+          </div>
+        </div>
+
+        <div class="verdict" id="verdict"></div>
+      </div>
+
+      <div class="again">
+        <button id="reset">別の画像で確認する</button>
+      </div>
+    </section>
+
+    <footer>確認くん — 画像はブラウザ内だけで処理され、どこにも送信されません。</footer>
+  </div>
+
+<script>
+(function () {
+  var drop = document.getElementById('drop');
+  var fileInput = document.getElementById('file');
+  var result = document.getElementById('result');
+  var img = document.getElementById('preview-img');
+  var mSize = document.getElementById('m-size');
+  var mRatio = document.getElementById('m-ratio');
+  var verdict = document.getElementById('verdict');
+  var resetBtn = document.getElementById('reset');
+
+  function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+  function handleFile(file) {
+    if (!file || !/^image\//.test(file.type)) {
+      alert('画像ファイルを入れてね（jpg / png / webp など）');
+      return;
+    }
+    var url = URL.createObjectURL(file);
+    var probe = new Image();
+    probe.onload = function () {
+      var w = probe.naturalWidth, h = probe.naturalHeight;
+      img.src = url;
+      mSize.textContent = w + ' × ' + h + ' px';
+
+      var g = gcd(w, h) || 1;
+      var rw = Math.round(w / g), rh = Math.round(h / g);
+      var ratioText = rw + ':' + rh;
+      // あまりに大きい比は小数表記でも補足
+      if (rw > 50 || rh > 50) {
+        ratioText = (w / h).toFixed(2) + ' : 1';
+      }
+      mRatio.textContent = ratioText;
+
+      if (Math.abs(w - h) <= Math.max(w, h) * 0.02) {
+        verdict.className = 'verdict ok';
+        verdict.textContent = '✓ ほぼ正方形。ヤフショでも黒帯なしでキレイに表示されます。';
+      } else if (h > w) {
+        verdict.className = 'verdict warn';
+        verdict.textContent = '⚠ 縦長画像です。ヤフショでは上のように左右へ黒帯が入ります。';
+      } else {
+        verdict.className = 'verdict warn';
+        verdict.textContent = '⚠ 横長画像です。ヤフショでは上下に黒帯が入ります。';
+      }
+
+      result.classList.add('show');
+      result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    probe.onerror = function () {
+      alert('この画像は読み込めませんでした。別のファイルで試してね。');
+      URL.revokeObjectURL(url);
+    };
+    probe.src = url;
+  }
+
+  // クリックで選択
+  fileInput.addEventListener('change', function (e) {
+    if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  // ドラッグ＆ドロップ
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) {
+      e.preventDefault(); e.stopPropagation();
+      drop.classList.add('drag');
+    });
+  });
+  ['dragleave', 'dragend', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) {
+      e.preventDefault(); e.stopPropagation();
+      drop.classList.remove('drag');
+    });
+  });
+  drop.addEventListener('drop', function (e) {
+    var dt = e.dataTransfer;
+    if (dt && dt.files && dt.files[0]) handleFile(dt.files[0]);
+  });
+
+  // ページ全体でのドロップ暴発を防ぐ
+  ['dragover', 'drop'].forEach(function (ev) {
+    window.addEventListener(ev, function (e) { e.preventDefault(); }, false);
+  });
+
+  resetBtn.addEventListener('click', function () {
+    fileInput.value = '';
+    result.classList.remove('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+})();
+</script>
+</body>
+</html>
